@@ -1,0 +1,10 @@
+Package: FishFreqClustering
+Title: IATTC's clustering R package for analyzing size frequency data
+Version: 0.0.1
+Author: TBA
+Description: TBA
+License: Apache License (>= 2)
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
