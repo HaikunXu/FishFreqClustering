@@ -4,7 +4,7 @@
 \alias{packbylatlon}
 \title{\code{packbylatlon} This function ...}
 \usage{
-packbylatlon(datamat)
+packbylatlon(datamat, dlat, dlon, nbins)
 }
 \description{
 \code{packbylatlon} This function ...
