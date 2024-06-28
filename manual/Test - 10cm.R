@@ -38,7 +38,7 @@ for(i in 1:nrow(mmdt)){
 
 # run distributional clustering with adjacency criterion
 adjmat <- adjinf(mmdtpdf[,2],mmdtpdf[,3])
-alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=(rrs))
+alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=sign(rrs))
 
 # cplotu(alydens.spatial23$merges,alydens.spatial23$distseq,hopt='dist')
 
@@ -55,4 +55,3 @@ drawcells2(mmdtpdf[,2],mmdtpdf[,3],colseq=temp)
 colcol = rep(c(2,3, 4, 5, 6,7,8),3)
 atitle.cl<-"2000-2022"
 clusthistd3(kk,colseq=temp,atitle.cl,colcol, ylims = c(0, 0.3))
-
