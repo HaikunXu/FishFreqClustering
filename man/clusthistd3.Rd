@@ -9,7 +9,8 @@ clusthistd3(
   colseq,
   textchar,
   colcol = rep(c(2, 3, 5, 4, 6, 1, 7, 8), 3),
-  ylims = c(0, 3.6)
+  xlims = c(0, 200),
+  ylims = c(0, 0.5)
 )
 }
 \description{

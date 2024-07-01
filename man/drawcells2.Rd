@@ -4,7 +4,7 @@
 \alias{drawcells2}
 \title{\code{drawcells2} This function ...}
 \usage{
-drawcells2(lats, lons, colseq, putnum = TRUE)
+drawcells2(lats, lons, dlat, dlon, colseq, putnum = TRUE)
 }
 \description{
 \code{drawcells2} This function ...
