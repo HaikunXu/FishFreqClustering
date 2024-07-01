@@ -2,14 +2,19 @@ library(FishFreqClustering)
 library(FishFreqTree)
 library(tidyverse)
 
-
 LF1 <- LF1[,c(1,2,3,4,6:20)]
 #analysis
 bins <- seq(30, 170, 10) # data length bins
 nbins <- length(bins)
+fcol = 5
+lcol = 19
+save_dir="D:/OneDrive - IATTC/Git/FishFreqClustering/manual/"
+
+make.meanl.map(LF1,fcol,lcol,bins,save_dir,width=10,height=10)
+make.lf.map(LF1,fcol,lcol,bins,save_dir)
 
 # divide by the mean for the year-quarter
-LF2 <- lf.demean(LF1, 5, 19, bins = bins)
+LF2 <- lf.demean(LF1, fcol, lcol, bins)
 
 mmd <- LF2[,c(2,4:20)]
 min_samplesize <- 5
@@ -55,3 +60,9 @@ drawcells2(mmdtpdf[,2],mmdtpdf[,3],colseq=temp)
 colcol = rep(c(2,3, 4, 5, 6,7,8),3)
 atitle.cl<-"2000-2022"
 clusthistd3(kk,colseq=temp,atitle.cl,colcol, ylims = c(0, 0.3))
+
+# save clustering results
+cluster <- cbind(mmdt, temp)
+names(cluster) <- c("Year", "Lat", "Lon", seq(30,170,10), "Nsamps", "Cell")
+
+write.csv(cluster, file = "cluster_YFT.csv", row.names = FALSE)
