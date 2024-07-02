@@ -13,10 +13,10 @@ Raw$lon = Raw$lon.5deg - 2.5
 LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
 LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   group_by(lat, lon) %>% mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
-  filter(N > 4)
+  filter(N > 3, lat> -10)
 
 bins <- seq(1, 201, 1) # data length bins
-new_bins <- c(seq(30, 180, 10)) # bins to  be used in the analysis
+new_bins <- seq(30, 180, 10) # bins to  be used in the analysis
 
 LF1 <-
   lf.aggregate(
@@ -43,7 +43,8 @@ make.lf.map(LF1,fcol,lcol,bins,save_dir)
 LF2 <- lf.demean(LF1, fcol, lcol, bins)
 
 mmd <- LF2[,c(2,4:21)]
-min_samplesize <- 5
+# mmd <- LF1[,c(1,3:20)]
+min_samplesize <- 1
 
 # setting up input data frames for clustering algorithm
 temp = packbylatlon(mmd, 5, 5, nbins)  # lat, lon  
@@ -71,12 +72,12 @@ for(i in 1:nrow(mmdt)){
 adjmat <- adjinf(mmdtpdf[,2],mmdtpdf[,3])
 alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=sign(rrs))
 
-cplotu(alydens.spatial23$merges,alydens.spatial23$distseq,hopt='dist')
+# cplotu(alydens.spatial23$merges,alydens.spatial23$distseq,hopt='dist')
 
 # making maps of the clusters and corresponding L-F density curves
 #     kk is the number of clusters to use
 kk<-5
-par(mfrow=c(1,2),mar=c(4,4,1,1))
+# par(mfrow=c(1,2),mar=c(4,4,1,1))
 
 # # map of clusters
 temp <- putcolor(alydens.spatial23$merges, kk)
@@ -113,6 +114,10 @@ ggplot(data = LF1_cluster) +
   geom_point(aes(x = Length, y = Mean_LF, color = cell)) +
   theme_bw()
 
+LF1_cluster <- left_join(LF1, cluster) %>%
+  rename(Flag = cell)
+make.lf.cell(LF1_cluster,fcol,lcol,bins,save_dir,plot_name = "NewLF")
+
 # compare it with the regression tree result
 save_dir <- directory
 
@@ -121,16 +126,16 @@ dir.create(loop_dir)
 
 my_select_matrix <-
   data.matrix(expand.grid(
-    split1 = 1:3,
+    split1 = 1:2,
     split2 = 1:2,
-    split3 = 1:2,
+    split3 = 1:1,
     split4 = 1:1
   ))
 
 LF_Tree_Loop <-
-  loop_regression_tree(LF2,
-                       fcol + 1,
-                       lcol + 1,
+  loop_regression_tree(LF1,
+                       fcol,
+                       lcol,
                        bins,
                        Nsplit=4,
                        save_dir = loop_dir,
@@ -142,28 +147,38 @@ LF_Tree_Loop <-
 # best one
 LF_Tree <-
   run_regression_tree(
-    LF2,
-    fcol + 1,
-    lcol + 1,
+    LF1,
+    fcol,
+    lcol,
     bins,
     Nsplit = 4,
     save_dir,
     lat.min = 2,
     lon.min = 2,
     manual = TRUE,
-    select = c(1, 1, 1, 1)
+    select = c(1, 2, 1, 1)
   )
 make.split.map(
   LF_Tree$LF,
-  Nsplit = 4,
+  Nsplit = 3,
   save_dir,
   width = 10,
   height = 10
 )
 
-LF_test <- left_join(LF_Tree$LF, cluster) %>%
-  rename(Flag = cell) %>%
-  mutate(Flag = as.numeric(Flag))
+LF1$Flag <- LF_Tree$LF$Flag3
+make.lf.cell(LF1,fcol,lcol,bins,save_dir,plot_name = "OldLF")
 
-evaluate_regression_tree(LF_test, 6, 19, "Flag",
+LF_test <- left_join(LF_Tree$LF, cluster) %>%
+  mutate(Flag5 = as.numeric(cell))
+make.split.map(
+  LF_test,
+  Nsplit = 5,
+  save_dir,
+  width = 10,
+  height = 10,
+  plot_name = "New"
+)
+
+evaluate_regression_tree(LF_test, 5, 20, "Flag4",
                          bins, directory, folder_name = "New")
