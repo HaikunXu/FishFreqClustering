@@ -1,5 +1,5 @@
 ---
-title: "Test"
+title: "Fishery definition for YFT in dolphin sets"
 author: "Haikun Xu"
 date: "`r Sys.Date()`"
 output: word_document
@@ -9,6 +9,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
                       fig.height = 8,
                       fig.width = 12)
 ```
@@ -29,12 +30,14 @@ Raw$lon = Raw$lon.5deg - 2.5
 
 ```{r prepare the dataset for the clustering analysis}
 LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
-LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
-  group_by(lat, lon) %>% mutate(N = length(unique(paste0(year, "-", quarter)))) %>% filter(N > 3) #, lat > -10)
+LF <-
+  LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
+  group_by(lat, lon) %>% mutate(N = length(unique(paste0(year, "-", quarter)))) %>% filter(N > 3) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
-new_bins <- seq(50, 180, 10) # bins to  be used in the analysis
+new_bins <- seq(50, 180, 10) # bins to be used in the clustering analysis
 
+# first aggregate the raw LF to the new bins by quarter
 LF1 <-
   lf.aggregate(
     LF,
@@ -45,8 +48,8 @@ LF1 <-
     LengthOnly = FALSE
   )
 
-#analysis
-bins <- new_bins
+# Chekcing the data by making two plots
+bins <- new_bins # use the new bins
 nbins <- length(bins)
 fcol = 5
 lcol = 4 + length(bins)
@@ -55,53 +58,59 @@ save_dir=directory
 make.meanl.map(LF1,fcol,lcol,bins,save_dir,width=10,height=10)
 make.lf.map(LF1,fcol,lcol,bins,save_dir)
 
-# divide by the mean for the year-quarter
+# divide the LF by the mean LF for the year-quarter
 LF2 <- lf.demean(LF1, fcol, lcol, bins)
 ```
 
 ```{r}
-mmd <- LF2[,c(2,4:(lcol+1))]
+mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
 min_samplesize <- 1 # the minimal number of quarters with data
 
 # setting up input data frames for clustering algorithm
-temp = packbylatlon(mmd, 5, 5, nbins)  # lat, lon  
+temp = packbylatlon(mmd, 5, 5, nbins)  # aggregate the input LF across time for each grid cell
 packedmmd3 = temp$table1
 packedpdf3 = topdf(packedmmd3, 4, 3 + nbins)
 packedcdf3 = tocdf(packedpdf3, 4, 3 + nbins)
-mmdt = packedmmd3[packedmmd3[,4 + nbins] >= min_samplesize, ]
-rrs = mmdt[, 4 + nbins] 
-mmdtpdf = packedpdf3[packedmmd3[,4 + nbins] >= min_samplesize, ]
-mmdtpdf[,4 + nbins] = mmdt[,4 + nbins]
-mmdtcdf = packedcdf3[packedmmd3[,4 + nbins] >= min_samplesize, ]
-mmdtcdf[,4 + nbins] = mmdt[,4 + nbins]
+mmdt = packedmmd3[packedmmd3[, 4 + nbins] >= min_samplesize,]
+rrs = mmdt[, 4 + nbins]
+mmdtpdf = packedpdf3[packedmmd3[, 4 + nbins] >= min_samplesize,]
+mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
+mmdtcdf = packedcdf3[packedmmd3[, 4 + nbins] >= min_samplesize,]
+mmdtcdf[, 4 + nbins] = mmdt[, 4 + nbins]
 
 densmatx = matrix(0, nrow(mmdt), nbins)
 densmaty = matrix(0, nrow(mmdt), nbins)
-for(i in 1:nrow(mmdt)){
-  weightvec = t(mmdt[i,4:(3 + nbins)])
-  weightvec = weightvec/sum(weightvec)
-  densmatx[i,] = bins
-  densmaty[i,] = t(weightvec)
+for (i in 1:nrow(mmdt)) {
+  weightvec = t(mmdt[i, 4:(3 + nbins)])
+  weightvec = weightvec / sum(weightvec)
+  densmatx[i, ] = bins
+  densmaty[i, ] = t(weightvec)
 }
 
 # run distributional clustering with adjacency criterion
-adjmat <- adjinf(mmdtpdf[,2],mmdtpdf[,3])
-alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=sign(rrs))
+adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3]) # the matrix specifying adjacency 
+alydens.spatial23 <-
+  hclust.regionsmm(
+    as.matrix(densmaty),
+    adj = TRUE, # adjacent areas
+    adjmat = adjmat,
+    rr = sign(rrs) # rr is the weighting factor
+  )
 ```
 
 ```{r}
 # making maps of the clusters and corresponding L-F density curves
+# Look at the tree structure
+cplotu(alydens.spatial23$merges,alydens.spatial23$distseq,hopt='dist')
 #     kk is the number of clusters to use
 kk = 5
-# # map of clusters
-temp <- putcolor(alydens.spatial23$merges, kk)
-
 # save clustering results
-cluster <- cbind(mmdt[, 2:3], factor(temp - 1))
+temp <- putcolor(alydens.spatial23$merges, kk)
+cluster <- cbind(mmdt[,2:3], factor(temp-1))
 names(cluster) <- c("lat", "lon", "cell")
+write.csv(cluster, file = paste0(save_dir, "cluster_YFT.csv"), row.names = FALSE)
 
-write.csv(cluster, file = "cluster_YFT.csv", row.names = FALSE)
-
+# # map of clusters
 wmap <- map_data("world")
 ggplot(data = cluster) +
   geom_tile(aes(x = lon, y = lat, fill = cell), color = "black") +
@@ -115,9 +124,8 @@ ggplot(data = cluster) +
   coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
                  xlim = c(min(cluster$lon), max(cluster$lon))) +
   theme_bw()
-#
 
-LF1_cluster <- left_join(LF1, cluster) %>%
-  rename(Flag = cell)
+# mean LF in each area
+LF1_cluster <- left_join(LF1, cluster) %>% rename(Flag = cell)
 make.lf.cell(LF1_cluster, fcol, lcol, bins, save_dir, plot_name = "NewLF2")
 ```
