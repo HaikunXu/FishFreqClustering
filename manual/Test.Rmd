@@ -1,0 +1,123 @@
+---
+title: "Test"
+author: "Haikun Xu"
+date: "`r Sys.Date()`"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.height = 8,
+                      fig.width = 12)
+```
+
+```{r load raw data and library}
+library(FishFreqClustering)
+library(FishFreqTree)
+library(tidyverse)
+
+directory <- "D:/OneDrive - IATTC/IATTC/2024/Irregular clustering/YFT DEL/"
+setwd(directory)
+
+Raw <- read.csv("yft_lf_2000_to_2022.csv")
+Raw$quarter = ceiling(Raw$month / 3)
+Raw$lat = Raw$lat.5deg + 2.5
+Raw$lon = Raw$lon.5deg - 2.5
+```
+
+```{r prepare the dataset for the clustering analysis}
+LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
+LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
+  group_by(lat, lon) %>% mutate(N = length(unique(paste0(year, "-", quarter)))) %>% filter(N > 3) #, lat > -10)
+
+bins <- seq(1, 201, 1) # data length bins
+new_bins <- seq(50, 180, 10) # bins to  be used in the analysis
+
+LF1 <-
+  lf.aggregate(
+    LF,
+    fcol = 5,
+    lcol = 205,
+    bins,
+    new_bins,
+    LengthOnly = FALSE
+  )
+
+#analysis
+bins <- new_bins
+nbins <- length(bins)
+fcol = 5
+lcol = 4 + length(bins)
+save_dir=directory
+
+make.meanl.map(LF1,fcol,lcol,bins,save_dir,width=10,height=10)
+make.lf.map(LF1,fcol,lcol,bins,save_dir)
+
+# divide by the mean for the year-quarter
+LF2 <- lf.demean(LF1, fcol, lcol, bins)
+```
+
+```{r}
+mmd <- LF2[,c(2,4:(lcol+1))]
+min_samplesize <- 1 # the minimal number of quarters with data
+
+# setting up input data frames for clustering algorithm
+temp = packbylatlon(mmd, 5, 5, nbins)  # lat, lon  
+packedmmd3 = temp$table1
+packedpdf3 = topdf(packedmmd3, 4, 3 + nbins)
+packedcdf3 = tocdf(packedpdf3, 4, 3 + nbins)
+mmdt = packedmmd3[packedmmd3[,4 + nbins] >= min_samplesize, ]
+rrs = mmdt[, 4 + nbins] 
+mmdtpdf = packedpdf3[packedmmd3[,4 + nbins] >= min_samplesize, ]
+mmdtpdf[,4 + nbins] = mmdt[,4 + nbins]
+mmdtcdf = packedcdf3[packedmmd3[,4 + nbins] >= min_samplesize, ]
+mmdtcdf[,4 + nbins] = mmdt[,4 + nbins]
+
+densmatx = matrix(0, nrow(mmdt), nbins)
+densmaty = matrix(0, nrow(mmdt), nbins)
+for(i in 1:nrow(mmdt)){
+  weightvec = t(mmdt[i,4:(3 + nbins)])
+  weightvec = weightvec/sum(weightvec)
+  densmatx[i,] = bins
+  densmaty[i,] = t(weightvec)
+}
+
+# run distributional clustering with adjacency criterion
+adjmat <- adjinf(mmdtpdf[,2],mmdtpdf[,3])
+alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=sign(rrs))
+```
+
+```{r}
+# making maps of the clusters and corresponding L-F density curves
+#     kk is the number of clusters to use
+kk = 5
+# # map of clusters
+temp <- putcolor(alydens.spatial23$merges, kk)
+
+# save clustering results
+cluster <- cbind(mmdt[, 2:3], factor(temp - 1))
+names(cluster) <- c("lat", "lon", "cell")
+
+write.csv(cluster, file = "cluster_YFT.csv", row.names = FALSE)
+
+wmap <- map_data("world")
+ggplot(data = cluster) +
+  geom_tile(aes(x = lon, y = lat, fill = cell), color = "black") +
+  geom_polygon(
+    data = wmap,
+    aes(long, lat, group = group),
+    fill = "black",
+    colour = "white",
+    lwd = 0.5
+  ) +
+  coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
+                 xlim = c(min(cluster$lon), max(cluster$lon))) +
+  theme_bw()
+#
+
+LF1_cluster <- left_join(LF1, cluster) %>%
+  rename(Flag = cell)
+make.lf.cell(LF1_cluster, fcol, lcol, bins, save_dir, plot_name = "NewLF2")
+```
