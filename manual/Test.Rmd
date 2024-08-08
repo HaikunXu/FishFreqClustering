@@ -30,9 +30,10 @@ Raw$lon = Raw$lon.5deg - 2.5
 
 ```{r prepare the dataset for the clustering analysis}
 LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
-LF <-
-  LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
-  group_by(lat, lon) %>% mutate(N = length(unique(paste0(year, "-", quarter)))) %>% filter(N > 3) # remove the cells with less than 4 quarters of data since 2000
+LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
+  group_by(lat, lon) %>%
+  mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
+  filter(N > 2, lat > -10) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
 new_bins <- seq(50, 180, 10) # bins to be used in the clustering analysis
@@ -64,25 +65,24 @@ LF2 <- lf.demean(LF1, fcol, lcol, bins)
 
 ```{r}
 mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
-min_samplesize <- 1 # the minimal number of quarters with data
 
 # setting up input data frames for clustering algorithm
 temp = packbylatlon(mmd, 5, 5, nbins)  # aggregate the input LF across time for each grid cell
 packedmmd3 = temp$table1
 packedpdf3 = topdf(packedmmd3, 4, 3 + nbins)
-packedcdf3 = tocdf(packedpdf3, 4, 3 + nbins)
-mmdt = packedmmd3[packedmmd3[, 4 + nbins] >= min_samplesize,]
-rrs = mmdt[, 4 + nbins]
-mmdtpdf = packedpdf3[packedmmd3[, 4 + nbins] >= min_samplesize,]
+# packedcdf3 = tocdf(packedpdf3, 4, 3 + nbins)
+mmdt = packedmmd3[packedmmd3[, 4 + nbins] > 0,]
+rrs = mmdt[, 4 + nbins] # sample size
+mmdtpdf = packedpdf3[packedmmd3[, 4 + nbins] > 0,] # PDF sums to 1 for each grid
 mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
-mmdtcdf = packedcdf3[packedmmd3[, 4 + nbins] >= min_samplesize,]
-mmdtcdf[, 4 + nbins] = mmdt[, 4 + nbins]
+# mmdtcdf = packedcdf3[packedmmd3[, 4 + nbins] > 0,]
+# mmdtcdf[, 4 + nbins] = mmdt[, 4 + nbins]
 
 densmatx = matrix(0, nrow(mmdt), nbins)
 densmaty = matrix(0, nrow(mmdt), nbins)
 for (i in 1:nrow(mmdt)) {
-  weightvec = t(mmdt[i, 4:(3 + nbins)])
-  weightvec = weightvec / sum(weightvec)
+  weightvec = t(mmdtpdf[i, 4:(3 + nbins)])
+  # weightvec = weightvec / sum(weightvec)
   densmatx[i, ] = bins
   densmaty[i, ] = t(weightvec)
 }
@@ -94,21 +94,21 @@ alydens.spatial23 <-
     as.matrix(densmaty),
     adj = TRUE, # adjacent areas
     adjmat = adjmat,
-    rr = sign(rrs) # rr is the weighting factor
+    rr = (rrs) # rr is the weighting factor
   )
 ```
 
-```{r}
+```{r 3 areas}
 # making maps of the clusters and corresponding L-F density curves
 # Look at the tree structure
-cplotu(alydens.spatial23$merges,alydens.spatial23$distseq,hopt='dist')
+cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist')
 #     kk is the number of clusters to use
-kk = 5
+kk = 3
 # save clustering results
 temp <- putcolor(alydens.spatial23$merges, kk)
-cluster <- cbind(mmdt[,2:3], factor(temp-1))
-names(cluster) <- c("lat", "lon", "cell")
-write.csv(cluster, file = paste0(save_dir, "cluster_YFT.csv"), row.names = FALSE)
+cluster <- cbind(mmdt[,2:3], factor(temp-1), rrs)
+names(cluster) <- c("lat", "lon", "cell", "Nsamp")
+write.csv(cluster, file = paste0(save_dir, "cluster_YFT", kk, ".csv"), row.names = FALSE)
 
 # # map of clusters
 wmap <- map_data("world")
@@ -121,11 +121,79 @@ ggplot(data = cluster) +
     colour = "white",
     lwd = 0.5
   ) +
+  geom_text(aes(x = lon, y = lat, label = Nsamp), color = "white",size=7) +
   coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
                  xlim = c(min(cluster$lon), max(cluster$lon))) +
   theme_bw()
+ggsave(file = paste0(save_dir, "Clustering_map", kk, ".png"))
 
 # mean LF in each area
 LF1_cluster <- left_join(LF1, cluster) %>% rename(Flag = cell)
-make.lf.cell(LF1_cluster, fcol, lcol, bins, save_dir, plot_name = "NewLF2")
+make.lf.cell(LF1_cluster, fcol, lcol, bins, save_dir, plot_name = paste0("NewLF", kk))
+```
+
+```{r 4 areas}
+# making maps of the clusters and corresponding L-F density curves
+
+#     kk is the number of clusters to use
+kk = 4
+# save clustering results
+temp <- putcolor(alydens.spatial23$merges, kk)
+cluster <- cbind(mmdt[,2:3], factor(temp-1), rrs)
+names(cluster) <- c("lat", "lon", "cell", "Nsamp")
+write.csv(cluster, file = paste0(save_dir, "cluster_YFT", kk, ".csv"), row.names = FALSE)
+
+# # map of clusters
+wmap <- map_data("world")
+ggplot(data = cluster) +
+  geom_tile(aes(x = lon, y = lat, fill = cell), color = "black") +
+  geom_polygon(
+    data = wmap,
+    aes(long, lat, group = group),
+    fill = "black",
+    colour = "white",
+    lwd = 0.5
+  ) +
+  geom_text(aes(x = lon, y = lat, label = Nsamp), color = "white",size=7) +
+  coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
+                 xlim = c(min(cluster$lon), max(cluster$lon))) +
+  theme_bw()
+ggsave(file = paste0(save_dir, "Clustering_map", kk, ".png"))
+
+# mean LF in each area
+LF1_cluster <- left_join(LF1, cluster) %>% rename(Flag = cell)
+make.lf.cell(LF1_cluster, fcol, lcol, bins, save_dir, plot_name = paste0("NewLF", kk))
+```
+
+```{r 5 areas}
+# making maps of the clusters and corresponding L-F density curves
+
+#     kk is the number of clusters to use
+kk = 5
+# save clustering results
+temp <- putcolor(alydens.spatial23$merges, kk)
+cluster <- cbind(mmdt[,2:3], factor(temp-1), rrs)
+names(cluster) <- c("lat", "lon", "cell", "Nsamp")
+write.csv(cluster, file = paste0(save_dir, "cluster_YFT", kk, ".csv"), row.names = FALSE)
+
+# # map of clusters
+wmap <- map_data("world")
+ggplot(data = cluster) +
+  geom_tile(aes(x = lon, y = lat, fill = cell), color = "black") +
+  geom_polygon(
+    data = wmap,
+    aes(long, lat, group = group),
+    fill = "black",
+    colour = "white",
+    lwd = 0.5
+  ) +
+  geom_text(aes(x = lon, y = lat, label = Nsamp), color = "white",size=7) +
+  coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
+                 xlim = c(min(cluster$lon), max(cluster$lon))) +
+  theme_bw()
+ggsave(file = paste0(save_dir, "Clustering_map", kk, ".png"))
+
+# mean LF in each area
+LF1_cluster <- left_join(LF1, cluster) %>% rename(Flag = cell)
+make.lf.cell(LF1_cluster, fcol, lcol, bins, save_dir, plot_name = paste0("NewLF", kk))
 ```

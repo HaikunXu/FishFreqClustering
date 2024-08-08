@@ -10,14 +10,13 @@ Raw$quarter = ceiling(Raw$month / 3)
 Raw$lat = Raw$lat.5deg + 2.5
 Raw$lon = Raw$lon.5deg - 2.5
 
-
 LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
 LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   group_by(lat, lon) %>% mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
-  filter(N > 3, lat > -10)
+  filter(N > 4)
 
 bins <- seq(1, 201, 1) # data length bins
-new_bins <- seq(50, 180, 10) # bins to  be used in the analysis
+new_bins <- seq(1, 201, 1) # bins to  be used in the analysis
 
 LF1 <-
   lf.aggregate(
@@ -31,19 +30,18 @@ LF1 <-
 
 # LF1 <- LF1[,c(1,2,3,4,6:20)]
 #analysis
-bins <- seq(50, 180, 10) # data length bins
 nbins <- length(bins)
 fcol = 5
-lcol = 18
+lcol = 205
 save_dir=directory
 
 make.meanl.map(LF1,fcol,lcol,bins,save_dir,width=10,height=10)
-make.lf.map(LF1,fcol,lcol,bins,save_dir)
+# make.lf.map(LF1,fcol,lcol,bins,save_dir)
 
 # divide by the mean for the year-quarter
 LF2 <- lf.demean(LF1, fcol, lcol, bins)
 
-mmd <- LF2[,c(2,4:19)]
+mmd <- LF2[,c(2,4:206)]
 # mmd <- LF1[,c(1,3:20)]
 min_samplesize <- 1
 
@@ -59,19 +57,19 @@ mmdtpdf[,4 + nbins] = mmdt[,4 + nbins]
 mmdtcdf = packedcdf3[packedmmd3[,4 + nbins] >= min_samplesize, ] # remove the grids with no LF data
 mmdtcdf[,4 + nbins] = mmdt[,4 + nbins]
 
-densmatx = matrix(0, nrow(mmdt), nbins)
-densmaty = matrix(0, nrow(mmdt), nbins)
+densmatx = matrix(0, nrow(mmdt), 512)
+densmaty = matrix(0, nrow(mmdt), 512)
 for(i in 1:nrow(mmdt)){
   weightvec = t(mmdt[i,4:(3 + nbins)])
   weightvec = weightvec/sum(weightvec)
-  # tempmmd = density(seq(0.00,2.01, 0.01), weights =weightvec,bw=0.10)
-  densmatx[i,] = bins
-  densmaty[i,] = t(weightvec)
+  tempmmd = density(seq(0.01,2.01, 0.01), weights =weightvec,bw=0.10)
+  densmatx[i,] = tempmmd$x
+  densmaty[i,] = tempmmd$y
 }
 
 # run distributional clustering with adjacency criterion
 adjmat <- adjinf(mmdtpdf[,2],mmdtpdf[,3])
-alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=(rrs))
+alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=sign(rrs))
 
 # cplotu(alydens.spatial23$merges,alydens.spatial23$distseq,hopt='dist')
 
@@ -101,23 +99,23 @@ ggplot(data=cluster) +
   geom_polygon(data=wmap,aes(long, lat, group = group),fill = "black",colour = "white",lwd=0.5) +
   coord_quickmap(ylim = c(min(cluster$lat),max(cluster$lat)),xlim = c(min(cluster$lon),max(cluster$lon))) +
   theme_bw()
-# 
-# LF1_cluster <- left_join(LF1, cluster) %>%
-#   gather(5:20, key = "Length", value = LF) %>%
-#   mutate(Length = as.numeric(Length)) %>%
-#   group_by(cell, Length) %>%
-#   summarise(Mean_LF = mean(LF)) %>%
-#   group_by(cell) %>%
-#   mutate(Mean_LF = Mean_LF / sum(Mean_LF))
-# 
-# ggplot(data = LF1_cluster) +
-#   geom_line(aes(x = Length, y = Mean_LF, color = cell)) +
-#   geom_point(aes(x = Length, y = Mean_LF, color = cell)) +
-#   theme_bw()
+
+LF1_cluster <- left_join(LF1, cluster) %>%
+  gather(5:20, key = "Length", value = LF) %>%
+  mutate(Length = as.numeric(Length)) %>%
+  group_by(cell, Length) %>%
+  summarise(Mean_LF = mean(LF)) %>%
+  group_by(cell) %>%
+  mutate(Mean_LF = Mean_LF / sum(Mean_LF))
+
+ggplot(data = LF1_cluster) +
+  geom_line(aes(x = Length, y = Mean_LF, color = cell)) +
+  geom_point(aes(x = Length, y = Mean_LF, color = cell)) +
+  theme_bw()
 
 LF1_cluster <- left_join(LF1, cluster) %>%
   rename(Flag = cell)
-make.lf.cell(LF1_cluster,fcol,lcol,bins,save_dir,plot_name = "NewLF2")
+make.lf.cell(LF1_cluster,fcol,lcol,bins,save_dir,plot_name = "NewLF")
 
 # compare it with the regression tree result
 save_dir <- directory
@@ -172,10 +170,10 @@ LF1$Flag <- LF_Tree$LF$Flag3
 make.lf.cell(LF1,fcol,lcol,bins,save_dir,plot_name = "OldLF")
 
 LF_test <- left_join(LF_Tree$LF, cluster) %>%
-  mutate(Flag3 = as.numeric(cell))
+  mutate(Flag5 = as.numeric(cell))
 make.split.map(
   LF_test,
-  Nsplit = 3,
+  Nsplit = 5,
   save_dir,
   width = 10,
   height = 10,
