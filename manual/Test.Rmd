@@ -33,7 +33,7 @@ LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
 LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   group_by(lat, lon) %>%
   mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
-  filter(N > 2, lat > -10) # remove the cells with less than 4 quarters of data since 2000
+  filter(N > 3, lat > -10) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
 new_bins <- seq(50, 180, 10) # bins to be used in the clustering analysis
@@ -92,7 +92,7 @@ adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3]) # the matrix specifying adjacency
 alydens.spatial23 <-
   hclust.regionsmm(
     as.matrix(densmaty),
-    adj = TRUE, # adjacent areas
+    adj = FALSE, # adjacent areas
     adjmat = adjmat,
     rr = (rrs) # rr is the weighting factor
   )
