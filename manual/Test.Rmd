@@ -2,7 +2,7 @@
 title: "Fishery definition for YFT in dolphin sets"
 author: "Haikun Xu"
 date: "`r Sys.Date()`"
-output: word_document
+output: pdf_document
 editor_options: 
   chunk_output_type: console
 ---
