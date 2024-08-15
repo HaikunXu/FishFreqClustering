@@ -66,5 +66,5 @@ hclust.regionsmm <- function(distribmatin,rr,adj=FALSE, adjmat=NULL,KL="KL"){
     }
   }
   #         browser()
-  return(list(merges=merges,distseq=distseq) )
+  return(list(merges=merges,distseq=distseq,distantmat=distantmat) )
 }

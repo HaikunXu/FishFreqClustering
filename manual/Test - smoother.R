@@ -69,7 +69,14 @@ for(i in 1:nrow(mmdt)){
 
 # run distributional clustering with adjacency criterion
 adjmat <- adjinf(mmdtpdf[,2],mmdtpdf[,3])
-alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=sign(rrs))
+alydens.spatial23 <- hclust.regionsmm(as.matrix(densmaty),adj=TRUE,adjmat=adjmat,rr=(rrs))
+
+teststat <- heterodist(alydens.spatial23$merges,alydens.spatial23$distseq,tempmmd$x,densmaty,
+                       rrs,doko=c(1,5),BB=50)
+write.csv(teststat$statmat, file = "MJS distance.csv", row.names = FALSE)
+
+teststats <- heterodists(alydens.spatial23$merges,alydens.spatial23$distseq,tempmmd$x,densmaty,
+                         rrs,BB=c(10, 100), bounds = c(0.005, 0.1))
 
 # cplotu(alydens.spatial23$merges,alydens.spatial23$distseq,hopt='dist')
 

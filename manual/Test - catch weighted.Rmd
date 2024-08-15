@@ -1,8 +1,8 @@
 ---
-title: "Fishery definition for YFT in dolphin sets"
+title: "Fishery definition for YFT in dolphin sets - Catch weighted"
 author: "Haikun Xu"
 date: "`r Sys.Date()`"
-output: pdf_document
+output: word_document
 editor_options: 
   chunk_output_type: console
 ---
@@ -33,7 +33,7 @@ LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
 LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   group_by(lat, lon) %>%
   mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
-  filter(N > 4, lat > -10) # remove the cells with less than 4 quarters of data since 2000
+  filter(N > 3, lat > -10) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
 new_bins <- seq(50, 180, 10) # bins to be used in the clustering analysis
@@ -63,6 +63,35 @@ make.lf.map(LF1,fcol,lcol,bins,save_dir)
 LF2 <- lf.demean(LF1, fcol, lcol, bins)
 ```
 
+```{r catch}
+cae <- BSE::read.cae.f("D:/OneDrive - IATTC/IATTC/2024/SAC15/PS Database/", "CAE-LatLon2000-2023.txt",2000,2023)
+
+YFT_DEL_catch <- cae %>%
+  filter(setype == 1, class == 6) %>%
+  rename(lat = latc5, lon = lonc5) %>%
+  group_by(lat, lon) %>%
+  summarise(Catch = sum(sum.trop.tunas)/1000)
+
+wmap <- map_data("world")
+ggplot(data = YFT_DEL_catch) +
+  geom_tile(aes(x = lon, y = lat, fill = Catch), color = "black") +
+    scale_fill_gradient(
+    low = "white",
+    high = "red",
+    na.value = "white",
+    limits = c(0, max(YFT_DEL_catch$Catch))
+  ) +
+  geom_polygon(
+    data = wmap,
+    aes(long, lat, group = group),
+    fill = "black",
+    colour = "white",
+    lwd = 0.5
+  ) +
+  coord_quickmap(ylim = c(min(YFT_DEL_catch$lat), max(YFT_DEL_catch$lat)), xlim = c(min(YFT_DEL_catch$lon), max(YFT_DEL_catch$lon))) +
+  theme_bw()
+```
+
 ```{r}
 mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
 
@@ -83,18 +112,39 @@ densmaty = matrix(0, nrow(mmdt), nbins)
 for (i in 1:nrow(mmdt)) {
   weightvec = t(mmdtpdf[i, 4:(3 + nbins)])
   # weightvec = weightvec / sum(weightvec)
-  densmatx[i, ] = bins
+  densmatx[i, ] = bins / 100
   densmaty[i, ] = t(weightvec)
 }
 
+names(mmdtpdf)[2:3] <- c("lat", "lon")
+mmdtpdf$Number <- 1:nrow(mmdtpdf)
+mmdfpdf_catch <- left_join(mmdtpdf, YFT_DEL_catch)
+
+# check grid ID
+ggplot(data = mmdfpdf_catch) +
+  geom_text(aes(x = lon, y = lat, label = Number), color = "black") +
+  geom_polygon(
+    data = wmap,
+    aes(long, lat, group = group),
+    fill = "black",
+    colour = "white",
+    lwd = 0.5
+  ) +
+  coord_quickmap(ylim = c(min(mmdfpdf_catch$lat), max(mmdfpdf_catch$lat)), xlim = c(min(mmdfpdf_catch$lon), max(mmdfpdf_catch$lon))) +
+  ggtitle("Grid ID") +
+  theme_bw()
+
 # run distributional clustering with adjacency criterion
-adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3], mindist = 5) # the matrix specifying adjacency 
+adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3], mindist = 5 * sqrt(2)) # the matrix specifying adjacency 
+adjmat[16,29] <- 0
+adjmat[29,16] <- 0
+
 alydens.spatial23 <-
   hclust.regionsmm(
     as.matrix(densmaty),
     adj = TRUE, # adjacent areas
     adjmat = adjmat,
-    rr = sign(rrs) # rr is the weighting factor; equal weighting is used in this case
+    rr = mmdfpdf_catch$Catch # rr is the weighting factor; equal weighting is used in this case
   )
 
 # Look at the tree structure
@@ -170,7 +220,7 @@ ggplot(data = cluster) +
     colour = "white",
     lwd = 0.5
   ) +
-  geom_text(aes(x = lon, y = lat, label = Nsamp), color = "white",size=7) +
+  geom_text(aes(x = lon, y = lat, label = round(Catch)), color = "white", size = 7, data = mmdfpdf_catch) +
   coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
                  xlim = c(min(cluster$lon), max(cluster$lon))) +
   theme_bw()
@@ -203,7 +253,7 @@ ggplot(data = cluster) +
     colour = "white",
     lwd = 0.5
   ) +
-  geom_text(aes(x = lon, y = lat, label = Nsamp), color = "white",size=7) +
+  geom_text(aes(x = lon, y = lat, label = round(Catch)), color = "white", size = 7, data = mmdfpdf_catch) +
   coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
                  xlim = c(min(cluster$lon), max(cluster$lon))) +
   theme_bw()
@@ -236,7 +286,7 @@ ggplot(data = cluster) +
     colour = "white",
     lwd = 0.5
   ) +
-  geom_text(aes(x = lon, y = lat, label = Nsamp), color = "white",size=7) +
+  geom_text(aes(x = lon, y = lat, label = round(Catch)), color = "white", size = 7, data = mmdfpdf_catch) +
   coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)),
                  xlim = c(min(cluster$lon), max(cluster$lon))) +
   theme_bw()
@@ -248,10 +298,9 @@ make.lf.cell(LF1_cluster, fcol, lcol, bins, save_dir, plot_name = paste0("NewLF"
 ```
 
 ```{r}
-# setwd("D:/OneDrive - IATTC/Git/FishFreqClustering/")
-# teststat <- heterodist(alydens.spatial23$merges,alydens.spatial23$distseq,new_bins,densmaty,
-#                        (rrs),doko=c(1,5),BB=50)
-# write.csv(teststat$statmat, file = "MJS distance.csv", row.names = FALSE)
+teststat <- heterodist(alydens.spatial23$merges,alydens.spatial23$distseq,new_bins/1000,densmaty,
+                       mmdfpdf_catch$Catch,doko=c(1,5),BB=10)
+write.csv(teststat$statmat, file = "MJS distance.csv", row.names = FALSE)
 # 
 # teststats <- heterodists(alydens.spatial23$merges,alydens.spatial23$distseq,new_bins,densmaty,
 #                          rrs,BB=c(100, 1000), bounds = c(0.005, 0.1))
