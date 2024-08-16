@@ -47,7 +47,9 @@ heterodist <- function(merges,distseq,densx,densmaty,rrs, KL='KL',doko=c(1,1),BB
   statmat[,1]<- distseq
   startnode <- mm - doko[1]
   endnode <- mm-doko[1]-doko[2]+1
-  for (i in seq(startnode, endnode, -1)){  
+  for (i in seq(startnode, endnode, -1)){ 
+    print(paste0('node = ',i))   #20200905
+    
     # 
     #   computation for parent node
     #
@@ -61,7 +63,6 @@ heterodist <- function(merges,distseq,densx,densmaty,rrs, KL='KL',doko=c(1,1),BB
     #    computation of distance measures
     #
     for(j in 1:BB){
-      print(paste('i=',i,'j=',j))   #20200905
       shiftj = 0
       if( sum(ifelse(diff(converted_pdf)==0, 1,0)) > 0 ) {
         shiftj = max(seq(1, length(converted_pdf)-1)*ifelse(diff(converted_pdf)==0, 1,0))

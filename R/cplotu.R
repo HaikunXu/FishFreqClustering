@@ -116,7 +116,7 @@ cplotu <- function(merges, distseq,hopt = 'unit',plotnum=10000,...){
       #         lines(c(x1,x1,x2,x2), c(y1,max(y1,y2)+1,max(y1,y2)+1,y2)) 
     } 
     lines(c(x1,x1,x2,x2), c(y1, y2, y2, y3))
-    if(k  >= plotnum) text((x1+x2)/2, y2*0.95, k,cex=1.5)       # 2020.08.29
+    if(sum(plotnum==k)==1) text((x1+x2)/2, y2, k,cex=1.2)       # 2020.08.29
   }
   #   return(list(xpos=xpos, ngroup=ngroup, nxpos=nxpos, nheight=nheight))
   return()

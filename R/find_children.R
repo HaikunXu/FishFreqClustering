@@ -3,7 +3,7 @@
 #'
 #' @export
 
-find_children <- function(nodes, node_id){
+find_children <- function(node_id){
   
   node_cells <- teststat$childnodes[node_id][[1]]
   node_children <- rep(NA, 2)

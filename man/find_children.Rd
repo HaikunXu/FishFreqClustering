@@ -4,7 +4,7 @@
 \alias{find_children}
 \title{\code{find_children} This function ...}
 \usage{
-find_children(nodes, node_id)
+find_children(node_id)
 }
 \description{
 \code{find_children} This function ...
