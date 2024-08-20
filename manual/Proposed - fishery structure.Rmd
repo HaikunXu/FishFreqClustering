@@ -141,10 +141,6 @@ alydens.spatial23 <-
     adjmat = adjmat,
     rr = mmdfpdf_catch$Catch # rr is the weighting factor; equal weighting is used in this case
   )
-
-# Look at the tree structure
-cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'unit')
-cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist')
 ```
 
 ```{r}
@@ -155,7 +151,8 @@ teststat <- heterodist(
   densmaty,
   mmdfpdf_catch$Catch,
   doko = c(1, 50),
-  BB = 100
+  BB = 100,
+  bins = tempmmd
 )
 
 catch_prop <- rep(0, nrow(teststat$statmat))
@@ -171,7 +168,10 @@ write.csv(MJS_statistics, file = "MJS distance (Fishery Structure).csv", row.nam
 
 ```{r}
 # draw density curves by cluster
-final_nodes <- find_tree(MJS_statistics, distance_threshold = 80, catch_threshold = 0.05)
+final_nodes <- find_clusters(MJS_statistics, distance_threshold = 110, catch_threshold = 0.05)
+
+# Look at the tree structure
+cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist', plotnum = final_nodes)
 
 temp2 <- rep(1, nrow(mmdt))
 for (i in 2:length(final_nodes)) {

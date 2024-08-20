@@ -34,7 +34,7 @@ LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
 LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   group_by(lat, lon) %>%
   mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
-  filter(N > 3, lat > -10) # remove the cells with less than 4 quarters of data since 2000
+  filter(N > 4, lat > -10) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
 new_bins <- seq(61, 200, 1) # bins to be used in the clustering analysis
@@ -184,7 +184,7 @@ write.csv(MJS_statistics, file = "MJS distance (Fishery Structure).csv", row.nam
 
 ```{r}
 # draw density curves by cluster
-final_nodes <- find_clusters(MJS_statistics, distance_threshold = 8, catch_threshold = 0.05)
+final_nodes <- find_clusters(MJS_statistics, distance_threshold = 5, catch_threshold = 0.05)
 
 # Look at the tree structure
 cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist', plotnum = final_nodes)
@@ -217,11 +217,10 @@ ggplot(data = cluster) +
 ggsave(file = paste0(save_dir, "Clustering_map.png"), h = 5, w= 8)
 
 colcol = rep(c(2, 3, 4, 5, 6, 7, 8), 3)
-densy_df <- clusthistd3(kk = 5, colseq = temp2 + 1, colcol, plot = FALSE)
+densy_df <- clusthistd3(kk = 3, colseq = temp2 + 1, colcol, plot = FALSE)
 
 ggplot(data = densy_df) +
   geom_line(aes(x = Length, y = Density, color = Cell), linewidth = 2) +
   xlab("Meter") + 
   theme_bw()
-ggsave(file = paste0(save_dir, "Clustering_LF.png"), h = 5, w= 8)
 ```

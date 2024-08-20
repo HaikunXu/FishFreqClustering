@@ -13,7 +13,8 @@ heterodist(
   KL = "KL",
   doko = c(1, 1),
   BB = 5,
-  bw = 0.1
+  bw = 0.1,
+  bins
 )
 }
 \description{
