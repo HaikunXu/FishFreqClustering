@@ -37,12 +37,12 @@ LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   filter(N > 11, lat < 15, lat >- 20) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
-new_bins <- seq(21, 150, 1) # bins to be used in the clustering analysis
+new_bins <- seq(21, 160, 1) # bins to be used in the clustering analysis
 
 # first aggregate the raw LF to the new bins by quarter
 LF1 <- lf.aggregate(LF, fcol = 5, lcol = 205, bins, new_bins, LengthOnly = FALSE)
 
-rows_selected <- which(apply(LF1[,5:134], 1, max) <= 0.2)
+rows_selected <- which(apply(LF1[,5:144], 1, max) <= 0.2)
 LF1 <- LF1[rows_selected,]
 
 # Chekcing the data by making two plots
@@ -69,7 +69,7 @@ packedmmd3 = temp$table1
 packedpdf3 = topdf(packedmmd3, 4, 3 + nbins)
 # packedcdf3 = tocdf(packedpdf3, 4, 3 + nbins)
 mmdt = packedmmd3[packedmmd3[, 4 + nbins] > 0,]
-rrs = mmdt[, 4 + nbins] # sample size
+rrs = sign(mmdt[, 4 + nbins]) # sample size
 mmdtpdf = packedpdf3[packedmmd3[, 4 + nbins] > 0,] # PDF sums to 1 for each grid
 mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
 # mmdtcdf = packedcdf3[packedmmd3[, 4 + nbins] > 0,]
@@ -94,12 +94,12 @@ ggplot(data = mmdtpdf) +
   ggtitle("Grid ID") +
   theme_bw()
 
-densmatx = matrix(0, nrow(mmdt), 430)
-densmaty = matrix(0, nrow(mmdt), 430)
+densmatx = matrix(0, nrow(mmdt), 420)
+densmaty = matrix(0, nrow(mmdt), 420)
 for(i in 1:nrow(mmdt)) {
   weightvec = t(mmdt[i, 4:(3 + nbins)])
   weightvec = weightvec / sum(weightvec)
-  tempmmd = density(seq(0.21, 1.50, 0.01), weights = weightvec, bw = 0.04)
+  tempmmd = density(seq(0.21, 1.50, 0.01), weights = weightvec, bw = 0.05)
   ii <- which(tempmmd$x>=0.21 & tempmmd$x<=1.50)
   densmatx[i, ] = tempmmd$x[ii]
   densmaty[i, ] = tempmmd$y[ii]
@@ -124,7 +124,7 @@ alydens.spatial23 <-
     as.matrix(densmaty),
     adj = TRUE, # adjacent areas
     adjmat = adjmat,
-    rr = sign(mmdtpdf$Number) # rr is the weighting factor; equal weighting is used in this case
+    rr = rrs # rr is the weighting factor; equal weighting is used in this case
   )
 
 # Look at the tree structure
@@ -137,7 +137,7 @@ teststat <- heterodist(
   alydens.spatial23$distseq,
   densmatx[1,],
   densmaty,
-  sign(mmdtpdf$Number),
+  rrs,
   doko = c(1, 30),
   BB = 100,
   bins = seq(0.21, 1.50, 0.01)

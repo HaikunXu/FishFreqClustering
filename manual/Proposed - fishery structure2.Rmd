@@ -52,7 +52,7 @@ save_dir=directory
 make.meanl.map(LF1, fcol, lcol, bins, save_dir, width = 10, height = 10)
 make.lf.map(LF1, fcol, lcol, bins, save_dir)
 
-Area <- read.csv("D:/OneDrive - IATTC/IATTC/2024/Irregular clustering/YFT DEL/cluster_YFT.csv")
+Area <- read.csv("D:/OneDrive - IATTC/IATTC/2024/Irregular clustering/YFT DEL/cluster_YFT2.csv")
 LF1 <- left_join(LF1, Area)
 ```
 
@@ -88,9 +88,8 @@ ggplot(data = YFT_DEL_catch) +
 ```{r a2}
 # divide the LF by the mean LF for the year-quarter
 LF1_a2 <- LF1 %>% filter(area == 2)
-LF2 <- lf.demean(LF1_a2, fcol, lcol, bins)
 
-mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
+mmd <- LF1_a2[,c(1,3:lcol)] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
 
 # setting up input data frames for clustering algorithm
 temp = packbylatlon(mmd, 5, 5, nbins)  # aggregate the input LF across time for each grid cell
@@ -99,7 +98,6 @@ packedmmd3 = temp$table1
 packedpdf3 = topdf(packedmmd3, 4, 3 + nbins)
 # packedcdf3 = tocdf(packedpdf3, 4, 3 + nbins)
 mmdt = packedmmd3[packedmmd3[, 4 + nbins] > 0,]
-rrs = mmdt[, 4 + nbins] # sample size
 mmdtpdf = packedpdf3[packedmmd3[, 4 + nbins] > 0,] # PDF sums to 1 for each grid
 mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
 # mmdtcdf = packedcdf3[packedmmd3[, 4 + nbins] > 0,]
@@ -108,6 +106,8 @@ mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
 names(mmdtpdf)[2:3] <- c("lat", "lon")
 mmdtpdf$Number <- 1:nrow(mmdtpdf)
 mmdfpdf_catch <- left_join(mmdtpdf, YFT_DEL_catch)
+
+rrs = mmdfpdf_catch$Catch # sample size
 
 # check grid ID
 ggplot(data = mmdfpdf_catch) +
@@ -123,14 +123,15 @@ ggplot(data = mmdfpdf_catch) +
   ggtitle("Grid ID") +
   theme_bw()
 
-densmatx = matrix(0, nrow(mmdt), 512)
-densmaty = matrix(0, nrow(mmdt), 512)
+densmatx = matrix(0, nrow(mmdt), 420)
+densmaty = matrix(0, nrow(mmdt), 420)
 for(i in 1:nrow(mmdt)) {
   weightvec = t(mmdt[i, 4:(3 + nbins)])
   weightvec = weightvec / sum(weightvec)
-  tempmmd = density(seq(0.61, 2.00, 0.01), weights = weightvec, bw = 0.10)
-  densmatx[i, ] = tempmmd$x
-  densmaty[i, ] = tempmmd$y
+  tempmmd = density(seq(0.61, 2.00, 0.01), weights = weightvec, bw = 0.05)
+  ii <- which(tempmmd$x>=0.61 & tempmmd$x<=2.00)
+  densmatx[i, ] = tempmmd$x[ii]
+  densmaty[i, ] = tempmmd$y[ii]
 }
 
 # run distributional clustering with adjacency criterion
@@ -141,7 +142,7 @@ alydens.spatial23 <-
     as.matrix(densmaty),
     adj = TRUE, # adjacent areas
     adjmat = adjmat,
-    rr = mmdfpdf_catch$Catch # rr is the weighting factor; equal weighting is used in this case
+    rr = rrs # rr is the weighting factor; equal weighting is used in this case
   )
 
 
@@ -150,8 +151,8 @@ teststat <- heterodist(
   alydens.spatial23$distseq,
   densmatx[1,],
   densmaty,
-  mmdfpdf_catch$Catch,
-  doko = c(1, 20),
+  rrs,
+  doko = c(1, 25),
   BB = 100,
   bins = seq(0.61, 2.00, 0.01)
 )
@@ -168,7 +169,8 @@ names(MJS_statistics) <- c("Node_Number", "STD_distance", "Catch_Proportion")
 
 
 # draw density curves by cluster
-final_nodes <- find_clusters(MJS_statistics, distance_threshold = 45, catch_threshold = 0.25)
+final_nodes <- find_clusters(MJS_statistics, distance_threshold = 50, catch_threshold = 0.50)
+MJS_statistics[final_nodes,]
 
 # Look at the tree structure
 cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist', plotnum = final_nodes)
@@ -211,9 +213,8 @@ ggplot(data = densy_df) +
 ```{r a3}
 # divide the LF by the mean LF for the year-quarter
 LF1_a3 <- LF1 %>% filter(area == 3)
-LF2 <- lf.demean(LF1_a3, fcol, lcol, bins)
 
-mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
+mmd <- LF1_a3[,c(1,3:lcol)] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
 
 # setting up input data frames for clustering algorithm
 temp = packbylatlon(mmd, 5, 5, nbins)  # aggregate the input LF across time for each grid cell
@@ -222,7 +223,7 @@ packedmmd3 = temp$table1
 packedpdf3 = topdf(packedmmd3, 4, 3 + nbins)
 # packedcdf3 = tocdf(packedpdf3, 4, 3 + nbins)
 mmdt = packedmmd3[packedmmd3[, 4 + nbins] > 0,]
-rrs = mmdt[, 4 + nbins] # sample size
+# rrs = mmdt[, 4 + nbins] # sample size
 mmdtpdf = packedpdf3[packedmmd3[, 4 + nbins] > 0,] # PDF sums to 1 for each grid
 mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
 # mmdtcdf = packedcdf3[packedmmd3[, 4 + nbins] > 0,]
@@ -231,6 +232,8 @@ mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
 names(mmdtpdf)[2:3] <- c("lat", "lon")
 mmdtpdf$Number <- 1:nrow(mmdtpdf)
 mmdfpdf_catch <- left_join(mmdtpdf, YFT_DEL_catch)
+
+rrs = mmdfpdf_catch$Catch # sample size
 
 # check grid ID
 ggplot(data = mmdfpdf_catch) +
@@ -246,25 +249,28 @@ ggplot(data = mmdfpdf_catch) +
   ggtitle("Grid ID") +
   theme_bw()
 
-densmatx = matrix(0, nrow(mmdt), 512)
-densmaty = matrix(0, nrow(mmdt), 512)
+densmatx = matrix(0, nrow(mmdt), 420)
+densmaty = matrix(0, nrow(mmdt), 420)
 for(i in 1:nrow(mmdt)) {
   weightvec = t(mmdt[i, 4:(3 + nbins)])
   weightvec = weightvec / sum(weightvec)
-  tempmmd = density(seq(0.61, 2.00, 0.01), weights = weightvec, bw = 0.10)
-  densmatx[i, ] = tempmmd$x
-  densmaty[i, ] = tempmmd$y
+  tempmmd = density(seq(0.61, 2.00, 0.01), weights = weightvec, bw = 0.05)
+  ii <- which(tempmmd$x>=0.61 & tempmmd$x<=2.00)
+  densmatx[i, ] = tempmmd$x[ii]
+  densmaty[i, ] = tempmmd$y[ii]
 }
 
 # run distributional clustering with adjacency criterion
-adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3], mindist = 5 * sqrt(2)) # the matrix specifying adjacency 
+adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3], mindist = 5 * sqrt(2)) # the matrix specifying adjacency
+adjmat[4,8] <- 0
+adjmat[8,4] <- 0
 
 alydens.spatial23 <-
   hclust.regionsmm(
     as.matrix(densmaty),
     adj = TRUE, # adjacent areas
     adjmat = adjmat,
-    rr = mmdfpdf_catch$Catch # rr is the weighting factor; equal weighting is used in this case
+    rr = rrs # rr is the weighting factor; equal weighting is used in this case
   )
 
 
@@ -273,8 +279,8 @@ teststat <- heterodist(
   alydens.spatial23$distseq,
   densmatx[1,],
   densmaty,
-  mmdfpdf_catch$Catch,
-  doko = c(1, 30),
+  rrs,
+  doko = c(1, 25),
   BB = 100,
   bins = seq(0.61, 2.00, 0.01)
 )
@@ -291,7 +297,8 @@ names(MJS_statistics) <- c("Node_Number", "STD_distance", "Catch_Proportion")
 
 
 # draw density curves by cluster
-final_nodes <- find_clusters(MJS_statistics, distance_threshold = 109, catch_threshold = 0.2)
+final_nodes <- find_clusters(MJS_statistics, distance_threshold = 20, catch_threshold = 0.4)
+MJS_statistics[final_nodes,]
 
 # Look at the tree structure
 cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist', plotnum = final_nodes)
@@ -302,7 +309,7 @@ for (i in 2:length(final_nodes)) {
 }
 
 cluster <- cbind(mmdt[,2:3], factor(temp2), round(mmdfpdf_catch$Catch,0))
-names(cluster) <- c("lat", "lon", "cell", "Weight")
+names(cluster) <- c("lat", "lon", "cell", "weight")
 # write.csv(cluster, file = paste0(save_dir, "cluster_YFT", kk, ".csv"), row.names = FALSE)
 
 # # map of clusters
@@ -315,7 +322,7 @@ ggplot(data = cluster) +
     colour = "white",
     lwd = 0.5
   ) +
-  geom_text(aes(x = lon, y = lat, label = Weight),
+  geom_text(aes(x = lon, y = lat, label = weight),
             color = "white",
             size = 7,
             ) +
@@ -333,8 +340,8 @@ ggplot(data = densy_df) +
 
 ```{r a1}
 # divide the LF by the mean LF for the year-quarter
-LF1_a3 <- LF1 %>% filter(area == 1)
-LF2 <- lf.demean(LF1_a3, fcol, lcol, bins)
+LF1_a1 <- LF1 %>% filter(area == 4)
+LF2 <- lf.demean(LF1_a1, fcol, lcol, bins)
 
 mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
 
@@ -355,6 +362,8 @@ names(mmdtpdf)[2:3] <- c("lat", "lon")
 mmdtpdf$Number <- 1:nrow(mmdtpdf)
 mmdfpdf_catch <- left_join(mmdtpdf, YFT_DEL_catch)
 
+rrs = mmdfpdf_catch$Catch # sample size
+
 # check grid ID
 ggplot(data = mmdfpdf_catch) +
   geom_polygon(
@@ -369,14 +378,15 @@ ggplot(data = mmdfpdf_catch) +
   ggtitle("Grid ID") +
   theme_bw()
 
-densmatx = matrix(0, nrow(mmdt), 512)
-densmaty = matrix(0, nrow(mmdt), 512)
+densmatx = matrix(0, nrow(mmdt), 420)
+densmaty = matrix(0, nrow(mmdt), 420)
 for(i in 1:nrow(mmdt)) {
   weightvec = t(mmdt[i, 4:(3 + nbins)])
   weightvec = weightvec / sum(weightvec)
-  tempmmd = density(seq(0.61, 2.00, 0.01), weights = weightvec, bw = 0.10)
-  densmatx[i, ] = tempmmd$x
-  densmaty[i, ] = tempmmd$y
+  tempmmd = density(seq(0.61, 2.00, 0.01), weights = weightvec, bw = 0.05)
+  ii <- which(tempmmd$x>=0.61 & tempmmd$x<=2.00)
+  densmatx[i, ] = tempmmd$x[ii]
+  densmaty[i, ] = tempmmd$y[ii]
 }
 
 # run distributional clustering with adjacency criterion
@@ -387,8 +397,7 @@ alydens.spatial23 <-
     as.matrix(densmaty),
     adj = TRUE, # adjacent areas
     adjmat = adjmat,
-    rr = mmdfpdf_catch$Catch # rr is the weighting factor; equal weighting is used in this case
-  )
+    rrs)
 
 
 teststat <- heterodist(
@@ -396,8 +405,8 @@ teststat <- heterodist(
   alydens.spatial23$distseq,
   densmatx[1,],
   densmaty,
-  mmdfpdf_catch$Catch,
-  doko = c(1, 10),
+  rrs,
+  doko = c(1, 8),
   BB = 100,
   bins = seq(0.61, 2.00, 0.01)
 )
@@ -440,7 +449,8 @@ ggplot(data = cluster) +
   ) +
   geom_text(aes(x = lon, y = lat, label = Weight),
             color = "white",
-            size = 7) +
+            size = 7,
+            ) +
   coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)), xlim = c(min(cluster$lon), max(cluster$lon))) +
   theme_bw()
 # ggsave(file = paste0(save_dir, "Clustering_map.png"), h = 5, w= 8)

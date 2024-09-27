@@ -1,5 +1,5 @@
 ---
-title: "New areas for YFT in dolphin sets"
+title: "New areas for YFT in floating-object sets"
 author: "Haikun Xu"
 date: "`r Sys.Date()`"
 output: word_document
@@ -29,15 +29,15 @@ Raw$lon = Raw$lon.5deg - 2.5
 ```
 
 ```{r prepare the dataset for the clustering analysis}
-LF.DEL <- Raw %>% filter(class == 6, setype == 1) # 1=DEL; 4=NOA; 5=OBJ
+LF.DEL <- Raw %>% filter(class == 6, setype == 5) # 1=DEL; 4=NOA; 5=OBJ
 
 LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   group_by(lat, lon) %>%
   mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
-  filter(N > 3, lat > -10) # remove the cells with less than 4 quarters of data since 2000
+  filter(N > 11, lat < 15, lat >- 20) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
-new_bins <- seq(61, 200, 1) # bins to be used in the clustering analysis
+new_bins <- seq(21, 160, 1) # bins to be used in the clustering analysis
 
 # first aggregate the raw LF to the new bins by quarter
 LF1 <- lf.aggregate(LF, fcol = 5, lcol = 205, bins, new_bins, LengthOnly = FALSE)
@@ -59,38 +59,8 @@ make.lf.map(LF1, fcol, lcol, bins, save_dir)
 LF2 <- lf.demean(LF1, fcol, lcol, bins)
 ```
 
-```{r catch}
-cae <- BSE::read.cae.f("D:/OneDrive - IATTC/IATTC/2024/SAC15/PS Database/", "CAE-LatLon2000-2023.txt",2000,2023)
-
-YFT_DEL_catch <- cae %>%
-  filter(setype == 1, class == 6) %>%
-  rename(lat = latc5, lon = lonc5) %>%
-  group_by(lat, lon) %>%
-  summarise(Catch = sum(sum.trop.tunas)/1000)
-
-wmap <- map_data("world")
-ggplot(data = YFT_DEL_catch) +
-  geom_tile(aes(x = lon, y = lat, fill = Catch), color = "black") +
-    scale_fill_gradient(
-    low = "white",
-    high = "red",
-    na.value = "white",
-    limits = c(0, max(YFT_DEL_catch$Catch))
-  ) +
-  geom_polygon(
-    data = wmap,
-    aes(long, lat, group = group),
-    fill = "black",
-    colour = "white",
-    lwd = 0.5
-  ) +
-  coord_quickmap(ylim = c(min(YFT_DEL_catch$lat), max(YFT_DEL_catch$lat)), xlim = c(min(YFT_DEL_catch$lon), max(YFT_DEL_catch$lon))) +
-  theme_bw()
-```
-
 ```{r}
-# mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
-mmd <- LF1[,c(1,3:lcol)]
+mmd <- LF2[,c(2,4:(lcol+1))] # mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
 
 # setting up input data frames for clustering algorithm
 temp = packbylatlon(mmd, 5, 5, nbins)  # aggregate the input LF across time for each grid cell
@@ -107,10 +77,11 @@ mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
 
 names(mmdtpdf)[2:3] <- c("lat", "lon")
 mmdtpdf$Number <- 1:nrow(mmdtpdf)
-mmdfpdf_catch <- left_join(mmdtpdf, YFT_DEL_catch)
 
 # check grid ID
-ggplot(data = mmdfpdf_catch) +
+wmap <- map_data("world")
+
+ggplot(data = mmdtpdf) +
   geom_polygon(
     data = wmap,
     aes(long, lat, group = group),
@@ -119,7 +90,7 @@ ggplot(data = mmdfpdf_catch) +
     lwd = 0.5
   ) +
   geom_text(aes(x = lon, y = lat, label = Number), color = "red", size = 5) +
-  coord_quickmap(ylim = c(min(mmdfpdf_catch$lat), max(mmdfpdf_catch$lat)), xlim = c(min(mmdfpdf_catch$lon), max(mmdfpdf_catch$lon))) +
+  coord_quickmap(ylim = c(min(mmdtpdf$lat), max(mmdtpdf$lat)), xlim = c(min(mmdtpdf$lon), max(mmdtpdf$lon))) +
   ggtitle("Grid ID") +
   theme_bw()
 
@@ -128,20 +99,20 @@ densmaty = matrix(0, nrow(mmdt), 420)
 for(i in 1:nrow(mmdt)) {
   weightvec = t(mmdt[i, 4:(3 + nbins)])
   weightvec = weightvec / sum(weightvec)
-  tempmmd = density(seq(0.61, 2.00, 0.01), weights = weightvec, bw = 0.05)
-  ii <- which(tempmmd$x>=0.61 & tempmmd$x<=2.00)
+  tempmmd = density(seq(0.21, 1.60, 0.01), weights = weightvec, bw = 0.05)
+  ii <- which(tempmmd$x>=0.21 & tempmmd$x<=1.60)
   densmatx[i, ] = tempmmd$x[ii]
   densmaty[i, ] = tempmmd$y[ii]
 }
 
 # compare Kernal density with observed LF
-i = 38
+i = 45
 
 weightvec = t(mmdt[i, 4:(3 + nbins)])
 weightvec = weightvec / sum(weightvec)
 
 plot(densmatx[1,]*100,densmaty[i,]/mean(densmaty[i,]), ylim = c(0,3))
-lines(61:200,weightvec/mean(weightvec))
+lines(21:160,weightvec/mean(weightvec))
 
 # run distributional clustering with adjacency criterion
 adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3], mindist = 5 * sqrt(2)) # the matrix specifying adjacency 
@@ -169,23 +140,19 @@ teststat <- heterodist(
   rrs,
   doko = c(1, 30),
   BB = 100,
-  bins = seq(0.61, 2.00, 0.01)
+  bins = seq(0.21, 1.60, 0.01)
 )
 
-catch_prop <- rep(0, nrow(teststat$statmat))
-for (i in 1:nrow(teststat$statmat)) {
-  Cells <- teststat$childnodes[i][[1]]
-  catch_prop[i] <- sum(mmdfpdf_catch$Catch[Cells]) / sum(mmdfpdf_catch$Catch)
-}
+catch_prop <- rep(1, nrow(teststat$statmat))
 
 MJS_statistics <- data.frame(cbind(1:nrow(teststat$statmat), teststat$statmat[,4], round(catch_prop,2)))
 names(MJS_statistics) <- c("Node_Number", "STD_distance", "Catch_Proportion")
-# write.csv(MJS_statistics, file = "MJS distance (Fishery Structure).csv", row.names = FALSE)
+write.csv(MJS_statistics, file = "MJS distance (Fishery Structure - OBJ).csv", row.names = FALSE)
 ```
 
 ```{r}
 # draw density curves by cluster
-final_nodes <- find_clusters(MJS_statistics, distance_threshold = 10, catch_threshold = 0.2)
+final_nodes <- find_clusters(MJS_statistics, distance_threshold = 5, catch_threshold = 0.2)
 
 # Look at the tree structure
 cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist', plotnum = final_nodes)
@@ -195,9 +162,9 @@ for (i in 2:length(final_nodes)) {
   temp2[teststat$childnodes[final_nodes[i]][[1]]] <- i
 }
 
-cluster <- cbind(mmdt[,2:3], factor(temp2), round(mmdfpdf_catch$Catch,0))
-names(cluster) <- c("lat", "lon", "cell", "Weight")
-# write.csv(cluster, file = paste0(save_dir, "cluster_YFT2.csv"), row.names = FALSE)
+cluster <- cbind(mmdt[,2:3], factor(temp2))
+names(cluster) <- c("lat", "lon", "cell")
+# write.csv(cluster, file = paste0(save_dir, "cluster_YFT.csv"), row.names = FALSE)
 
 # # map of clusters
 ggplot(data = cluster) +
@@ -214,11 +181,10 @@ ggplot(data = cluster) +
 ggsave(file = paste0(save_dir, "Clustering_map.png"), h = 5, w= 8)
 
 colcol = rep(c(2, 3, 4, 5, 6, 7, 8), 3)
-densy_df <- clusthistd3(kk = 3, colseq = temp2 + 1, colcol, plot = FALSE)
+densy_df <- clusthistd3(kk = 4, colseq = temp2 + 1, colcol, plot = FALSE)
 
 ggplot(data = densy_df) +
   geom_line(aes(x = Length, y = Density, color = Cell), linewidth = 2) +
   xlab("Meter") + 
   theme_bw()
-ggsave(file = paste0(save_dir, "Clustering_LF.png"), h = 5, w= 8)
 ```
