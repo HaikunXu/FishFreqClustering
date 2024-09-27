@@ -9,7 +9,7 @@ clusthistd3 <- function(kk, colseq, colcol=rep(c(2,3,5,4,6,1,7,8),3), plot = FAL
     plot(c(0,1,2), c(0,1,4), pch=' ', ylab='Density functions', xlab = "Meter") 
   }
 
-  tempmat =diag(rrs) %*% as.matrix(densmaty)
+  tempmat = diag(rrs) %*% as.matrix(densmaty)
   
   for(ii in 1:kk){
     if(length(tempmat[tcol==(ii+1),]) < 2*ncol(tempmat)){ 

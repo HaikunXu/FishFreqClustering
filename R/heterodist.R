@@ -65,12 +65,14 @@ heterodist <- function(merges,distseq,densx,densmaty,rrs, KL='KL',doko=c(1,1),BB
     #    computation of distance measures
     #
     for(j in 1:BB){
+      # print(paste0("node ",i,": ",j/BB*100,"%"))
+      
       shiftj = 0
       if( sum(ifelse(diff(converted_pdf)==0, 1,0)) > 0 ) {
         shiftj = max(seq(1, length(converted_pdf)-1)*ifelse(diff(converted_pdf)==0, 1,0))
       }
       #        if(i == 8) browser()
-      tsamples <- generatesample(converted_pdf, bins, trrs, 200,bw=bw,Shift = shiftj)  
+      tsamples <- generatesample(converted_pdf, bins, trrs, 100,bw=bw,Shift = shiftj)  
       tclust <- hclust.regionsmm(tsamples$dtable, trrs, KL=KL)
       distmat[i,j] <- tclust$distseq[length(tclust$distseq)]
       #         browser()
