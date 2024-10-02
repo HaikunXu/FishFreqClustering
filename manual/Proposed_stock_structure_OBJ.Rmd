@@ -34,7 +34,7 @@ LF.DEL <- Raw %>% filter(class == 6, setype == 5) # 1=DEL; 4=NOA; 5=OBJ
 LF <- LF.DEL[, c("year", "quarter", "lat", "lon", paste0("X", 1:201))] %>%
   group_by(lat, lon) %>%
   mutate(N = length(unique(paste0(year, "-", quarter)))) %>%
-  filter(N > 11, lat < 15, lat >- 20) # remove the cells with less than 4 quarters of data since 2000
+  filter(N > 11) # remove the cells with less than 4 quarters of data since 2000
 
 bins <- seq(1, 201, 1) # data length bins
 new_bins <- seq(21, 160, 1) # bins to be used in the clustering analysis
@@ -147,12 +147,11 @@ catch_prop <- rep(1, nrow(teststat$statmat))
 
 MJS_statistics <- data.frame(cbind(1:nrow(teststat$statmat), teststat$statmat[,4], round(catch_prop,2)))
 names(MJS_statistics) <- c("Node_Number", "STD_distance", "Catch_Proportion")
-write.csv(MJS_statistics, file = "MJS distance (Fishery Structure - OBJ).csv", row.names = FALSE)
 ```
 
 ```{r}
 # draw density curves by cluster
-final_nodes <- find_clusters(MJS_statistics, distance_threshold = 5, catch_threshold = 0.2)
+final_nodes <- find_clusters(MJS_statistics, distance_threshold = 5, catch_threshold = 0)
 
 # Look at the tree structure
 cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist', plotnum = final_nodes)
