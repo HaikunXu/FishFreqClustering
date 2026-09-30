@@ -1,0 +1,175 @@
+---
+title: "User Manual for R package *FishFreqClustering*"
+author: "Haikun Xu"
+date: "`r Sys.Date()`"
+output: pdf_document
+bibliography: references.bib
+editor_options: 
+  chunk_output_type: console
+---
+
+# Package demonstration
+
+Load the required packages:
+
+```{r message=FALSE}
+library(FishFreqClustering)
+library(tidyverse)
+
+load("D:/OneDrive - IATTC/IATTC/2021/Spatial-SA/SpatialAssessModelling/Data/PS_LF_5.RData")
+load("D:/OneDrive - IATTC/IATTC/2021/Spatial-SA/SpatialAssessModelling/Data/PS_Catch_5.RData")
+
+LF <- LF_DF[, c(3:7)] %>% 
+  filter(Length > 0) %>% # remove length = 0
+  mutate(year = ceiling(Year / 4), quarter = (Year - 1) %% 4 + 1) %>%
+  group_by(year, quarter, Lat, Lon) %>%
+  mutate(tot = sum(LF)) %>%
+  filter(tot > 0) %>% # remove all-0 LF rows
+  spread(Length, LF) %>% rename(lat = Lat, lon = Lon) %>% data.frame()
+
+Catch <- Catch_DF %>%
+  rename(lat = Lat, lon = Lon) %>%
+  mutate(lat = as.numeric(levels(lat))[lat],
+         lon = as.numeric(levels(lon))[lon]) %>%
+  group_by(lat, lon) %>%
+  summarise(Catch = mean(Catch))
+```
+
+```{r}
+# mmd is the input data for the clustering analysis - it should have year, lat, lon, and bin numbers
+mmd <- LF[,c(2:4, 7:44)] # quarter is removed from the data since it is not used in the algorithm
+
+nbins <- 38 # 10, 15,20, ..., 195 cm
+# setting up input data frames for clustering algorithm
+temp = packbylatlon(mmd, 5, 5, nbins)  # aggregate the input LF across time for each grid cell
+
+packedmmd3 = temp$table1
+packedpdf3 = topdf(packedmmd3, 4, 3 + nbins)
+mmdt = packedmmd3[packedmmd3[, 4 + nbins] > 0,]
+rrs = sign(mmdt[, 4 + nbins]) # sample size is the same for each grid cell, so using the same weighting for all cells
+mmdtpdf = packedpdf3[packedmmd3[, 4 + nbins] > 0,] # PDF sums to 1 for each grid
+mmdtpdf[, 4 + nbins] = mmdt[, 4 + nbins]
+
+names(mmdtpdf)[2:3] <- c("lat", "lon")
+mmdtpdf$Number <- 1:nrow(mmdtpdf) # grid number
+
+mmdfpdf_catch <- left_join(mmdtpdf, Catch) # match average catch amount to each grid for later use
+
+# check grid ID
+wmap <- map_data("world")
+ggplot(data = mmdtpdf) +
+  geom_polygon(
+    data = wmap,
+    aes(long, lat, group = group),
+    fill = "black",
+    colour = "white",
+    lwd = 0.5
+  ) +
+  geom_text(aes(x = lon, y = lat, label = Number), color = "red", size = 5) +
+  coord_quickmap(ylim = c(min(mmdtpdf$lat), max(mmdtpdf$lat)), xlim = c(min(mmdtpdf$lon), max(mmdtpdf$lon))) +
+  ggtitle("Grid ID") +
+  theme_bw()
+
+# the clustering method needs to use smoothed kernel density rather than raw LF 
+densmatx = matrix(0, nrow(mmdt), 440)
+densmaty = matrix(0, nrow(mmdt), 440)
+for(i in 1:nrow(mmdt)) {
+  weightvec = t(mmdt[i, 4:(3 + nbins)])
+  weightvec = weightvec / sum(weightvec)
+  tempmmd = density(seq(0.1, 1.95, 0.05), weights = weightvec, bw = 0.05)
+  ii <- which(tempmmd$x>=0.1 & tempmmd$x<=1.95)
+  densmatx[i, ] = tempmmd$x[ii]
+  densmaty[i, ] = tempmmd$y[ii]
+}
+
+# compare Kernal density with observed LF for grid 36 - which is randomely chosed
+i = 36
+
+weightvec = t(mmdt[i, 4:(3 + nbins)])
+weightvec = weightvec / sum(weightvec)
+
+plot(densmatx[1,]*100,densmaty[i,]/mean(densmaty[i,]), ylim = c(0,4))
+lines(seq(10,195,5),weightvec/mean(weightvec), col = "red", lwd = 2)
+
+# run distributional clustering with adjacency criterion
+adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3], mindist = 5) # the matrix specifying grid adjacency 
+# adjmat <- adjinf(mmdtpdf[, 2], mmdtpdf[, 3], mindist = 5 * sqrt(2)) # the matrix specifying adjacency - diagonal
+# adjmat[16, 29] <- 0
+# adjmat[29, 16] <- 0
+
+alydens.spatial23 <-
+  hclust.regionsmm(
+    as.matrix(densmaty),
+    adj = TRUE, # adjacent areas
+    adjmat = adjmat,
+    rr = rrs # rr is the weighting factor; equal weighting is used in this case
+  )
+
+# Look at the tree structure
+cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist')
+```
+
+```{r}
+# estimate standard distance for the top knots using boostrap; a larger value means the two branches of the knot are more different
+teststat <- heterodist(
+  alydens.spatial23$merges,
+  alydens.spatial23$distseq,
+  densmatx[1,],
+  densmaty,
+  rrs, # euqla weighting is used here for each grid
+  doko = c(1, 10), # checck the most important 10 top knots
+  BB = 200, # bootstrap sample size
+  bins = seq(0.1, 1.95, 0.05)
+)
+
+catch_prop <- rep(0, nrow(teststat$statmat))
+for (i in 1:nrow(teststat$statmat)) {
+  Cells <- teststat$childnodes[i][[1]]
+  catch_prop[i] <- sum(mmdfpdf_catch$Catch[Cells]) / sum(mmdfpdf_catch$Catch) # prop of catch under each knot
+}
+
+MJS_statistics <- data.frame(cbind(1:nrow(teststat$statmat), teststat$statmat[,4]), round(catch_prop,2))
+names(MJS_statistics) <- c("Node_Number", "STD_distance", "Catch_Proportion")
+# write.csv(MJS_statistics, file = "MJS distance (Fishery Structure).csv", row.names = FALSE)
+```
+
+```{r}
+# decide knots based on two thresholds
+final_nodes <- find_clusters(MJS_statistics, distance_threshold = 5, catch_threshold = 0.2)
+
+# Look at the tree structure
+cplotu(alydens.spatial23$merges, alydens.spatial23$distseq, hopt = 'dist', plotnum = final_nodes)
+
+temp2 <- rep(1, nrow(mmdt))
+for (i in 2:length(final_nodes)) {
+  temp2[teststat$childnodes[final_nodes[i]][[1]]] <- i
+}
+
+cluster <- cbind(mmdt[,2:3], factor(temp2), rrs)
+names(cluster) <- c("lat", "lon", "cell", "Weight")
+
+# write.csv(cluster, file = paste0(save_dir, "cluster_YFT2.csv"), row.names = FALSE)
+
+# # map of clusters
+ggplot(data = cluster) +
+  geom_tile(aes(x = lon, y = lat, fill = cell), color = "black") +
+  geom_polygon(
+    data = wmap,
+    aes(long, lat, group = group),
+    fill = "black",
+    colour = "white",
+    lwd = 0.5
+  ) +
+  coord_quickmap(ylim = c(min(cluster$lat), max(cluster$lat)), xlim = c(min(cluster$lon), max(cluster$lon))) +
+  theme_bw()
+# ggsave(file = paste0(save_dir, "Clustering_map.png"), h = 5, w= 8)
+
+colcol = rep(c(2, 3, 4, 5, 6, 7, 8), 3)
+densy_df <- clusthistd3(kk = 3, colseq = temp2 + 1, colcol, plot = FALSE)
+
+ggplot(data = densy_df) +
+  geom_line(aes(x = Length, y = Density, color = Cell), linewidth = 2) +
+  xlab("Meter") + 
+  theme_bw()
+# ggsave(file = paste0(save_dir, "Clustering_LF.png"), h = 5, w= 8)
+```

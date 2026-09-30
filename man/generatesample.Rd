@@ -4,7 +4,7 @@
 \alias{generatesample}
 \title{\code{generatesample} This function ...}
 \usage{
-generatesample(distfunc, densx, trrs, nsize = 50, bw, Shift = 0)
+generatesample(distfunc, densx, trrs, nsize = 200, bw, Shift = 0, nii)
 }
 \description{
 \code{generatesample} This function ...

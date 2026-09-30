@@ -3,11 +3,11 @@
 #'
 #' @export
 
-generatesample <- function(distfunc, densx, trrs,nsize=200,bw,Shift=0){
+generatesample <- function(distfunc, densx, trrs,nsize=200,bw,Shift=0,nii){
   mm<- length(trrs)
   fremat<- vector('list', mm)
   ctable<- matrix(0, mm, length(densx))
-  dtable<- matrix(0, mm, 420)
+  dtable<- matrix(0, mm, nii)
   for(i in 1:mm){
     temp <- runif(trrs[i]*nsize)  
     if(Shift > 0){
